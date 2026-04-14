@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     const result = await klingAdapter.queryTask(taskId, akOverride, skOverride);
     const sceneStatus: SceneStatus = statusMap[result.klingStatus] ?? 'failed';
 
+    console.log('[/api/video/status]', taskId, '→', result.klingStatus, '→', sceneStatus);
+
     return NextResponse.json({
       taskId: result.taskId,
       klingStatus: result.klingStatus,
