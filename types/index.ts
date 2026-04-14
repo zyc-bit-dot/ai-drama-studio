@@ -16,6 +16,7 @@ export interface Scene {
   genre: string;             // 题材标签，用于 VideoServiceFactory 路由
   status: SceneStatus;
   progress: number;          // 0-100
+  taskId?: string;           // 可灵任务 ID，用于页面刷新后恢复轮询
   videoUrl?: string;
   thumbnailUrl?: string;
   duration?: number;         // 秒

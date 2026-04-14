@@ -228,6 +228,54 @@ export function StudioLayout() {
     toast.info('已中断视频生成');
   }, [stopPolling, setScenes]);
 
+  // ── 核心轮询逻辑（提取为独立函数，供新提交和刷新恢复共用）──────────
+  const startPollingForTask = useCallback((sceneId: string, taskId: string) => {
+    stopPolling(sceneId); // 防止重复注册
+    const intervalId = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/video/status?taskId=${encodeURIComponent(taskId)}`, {
+          headers: getApiHeaders(),
+        });
+        const d = await r.json();
+        if (!r.ok) return;
+
+        const { status, videoUrl, coverUrl } = d as {
+          status: Scene['status']; videoUrl?: string; coverUrl?: string;
+        };
+
+        setScenes((prev) =>
+          prev.map((s) => {
+            if (s.id !== sceneId) return s;
+            const progress =
+              status === 'completed' ? 100
+              : status === 'failed'  ? 0
+              : status === 'pending' ? Math.max(s.progress, 10)
+              : Math.min(s.progress + 8, 90);
+            return { ...s, status, progress, videoUrl: videoUrl ?? s.videoUrl, thumbnailUrl: coverUrl ?? s.thumbnailUrl };
+          })
+        );
+
+        if (status === 'completed') { stopPolling(sceneId); toast.success('🎬 视频生成完成！'); }
+        else if (status === 'failed') { stopPolling(sceneId); toast.error('视频生成失败，可重新尝试'); }
+      } catch (e) { console.warn('[poll]', e); }
+    }, POLL_INTERVAL_MS);
+    pollingRefs.current.set(sceneId, intervalId);
+  }, [stopPolling, setScenes]);
+
+  // ── 页面加载后恢复轮询（刷新页面时 pending/generating 场景自动续轮）─
+  const resumeDone = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || resumeDone.current) return;
+    resumeDone.current = true;
+    const toResume = scenes.filter(
+      (s) => (s.status === 'pending' || s.status === 'generating') && s.taskId
+    );
+    if (toResume.length > 0) {
+      toResume.forEach((s) => startPollingForTask(s.id, s.taskId!));
+      toast.info(`已恢复 ${toResume.length} 个生成中任务的轮询`);
+    }
+  }, [isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── 视频生成 ───────────────────────────────────────────────────────
   const handleGenerateVideo = useCallback(async (scene: Scene) => {
     stopPolling(scene.id);
@@ -236,7 +284,7 @@ export function StudioLayout() {
     setScenes((prev) =>
       prev.map((s) =>
         s.id === scene.id
-          ? { ...s, status: 'pending', progress: 0, videoUrl: undefined, thumbnailUrl: undefined }
+          ? { ...s, status: 'pending', progress: 0, taskId: undefined, videoUrl: undefined, thumbnailUrl: undefined }
           : s
       )
     );
@@ -257,38 +305,11 @@ export function StudioLayout() {
       }
 
       const { taskId } = genData as { taskId: string };
+      // taskId 存入 scene，刷新页面后可恢复轮询
+      setScenes((prev) => prev.map((s) => s.id === scene.id ? { ...s, taskId } : s));
       toast.success('任务已提交，等待生成...', { id: toastId });
 
-      const intervalId = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/video/status?taskId=${encodeURIComponent(taskId)}`, {
-            headers: getApiHeaders(),
-          });
-          const d = await r.json();
-          if (!r.ok) return;
-
-          const { status, videoUrl, coverUrl } = d as {
-            status: Scene['status']; videoUrl?: string; coverUrl?: string;
-          };
-
-          setScenes((prev) =>
-            prev.map((s) => {
-              if (s.id !== scene.id) return s;
-              const progress =
-                status === 'completed' ? 100
-                : status === 'failed'  ? 0
-                : status === 'pending' ? Math.max(s.progress, 10)
-                : Math.min(s.progress + 8, 90);
-              return { ...s, status, progress, videoUrl: videoUrl ?? s.videoUrl, thumbnailUrl: coverUrl ?? s.thumbnailUrl };
-            })
-          );
-
-          if (status === 'completed') { stopPolling(scene.id); toast.success('🎬 视频生成完成！'); }
-          else if (status === 'failed') { stopPolling(scene.id); toast.error('视频生成失败，可重新尝试'); }
-        } catch (e) { console.warn('[poll]', e); }
-      }, POLL_INTERVAL_MS);
-
-      pollingRefs.current.set(scene.id, intervalId);
+      startPollingForTask(scene.id, taskId);
     } catch {
       toast.error('网络错误，任务提交失败', { id: toastId });
       setScenes((prev) => prev.map((s) => s.id === scene.id ? { ...s, status: 'failed' } : s));
