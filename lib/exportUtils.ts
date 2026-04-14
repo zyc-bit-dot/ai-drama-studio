@@ -26,9 +26,8 @@ export async function exportZip(
     const safeName = (scene.title || '分镜').replace(/[/\\?%*:|"<>]/g, '_');
     const filename = `${pad}_${safeName}.mp4`;
 
-    const res = await fetch(
-      `/api/export/proxy?url=${encodeURIComponent(scene.videoUrl!)}`
-    );
+    // 直接在浏览器端请求可灵 CDN（用户在中国大陆可直连；服务端代理因 IP 限制会 403）
+    const res = await fetch(scene.videoUrl!, { mode: 'cors' });
     if (!res.ok) throw new Error(`下载 "${filename}" 失败（${res.status}）`);
 
     folder.file(filename, await res.blob());

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Play, Loader2, CheckCircle2, XCircle, Clock, Sparkles,
-  ArrowLeft, ArrowRight, Plus, Trash2, PackageOpen, FileText, StopCircle,
+  ArrowLeft, ArrowRight, Plus, Trash2, PackageOpen, FileText, StopCircle, Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Scene, SceneStatus } from '@/types';
@@ -234,11 +234,18 @@ function SceneCard({
             </Button>
           )}
           {isDone && scene.videoUrl && (
-            <a href={scene.videoUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="outline" className="w-full text-xs">
-                <Play className="w-3 h-3 mr-1.5" />播放视频
-              </Button>
-            </a>
+            <div className="flex gap-1.5">
+              <a href={scene.videoUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full text-xs">
+                  <Play className="w-3 h-3 mr-1.5" />播放
+                </Button>
+              </a>
+              <a href={scene.videoUrl} download target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button size="sm" variant="outline" className="w-full text-xs">
+                  <Download className="w-3 h-3 mr-1.5" />下载
+                </Button>
+              </a>
+            </div>
           )}
         </div>
       </div>
