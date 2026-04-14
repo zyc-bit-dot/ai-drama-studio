@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // 只代理可灵视频 CDN，防止 SSRF 攻击
@@ -24,7 +26,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const upstream = await fetch(url);
+    const upstream = await fetch(url, {
+      headers: {
+        'Referer': 'https://klingai.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
+      },
+    });
     if (!upstream.ok) throw new Error(`上游 ${upstream.status}`);
 
     const buffer = await upstream.arrayBuffer();
