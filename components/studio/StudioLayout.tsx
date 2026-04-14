@@ -22,9 +22,10 @@ import { DirectInput } from './DirectInput';
 import { StoryboardPreview } from './StoryboardPreview';
 import { VideoProgress } from './VideoProgress';
 import { ProjectLibrary } from './ProjectLibrary';
+import { CharacterPanel } from './CharacterPanel';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import useLocalStorage from '@/hooks/useLocalStorage';
-import { Scene, Project } from '@/types';
+import { Scene, Project, CharacterProfile } from '@/types';
 import { getApiHeaders } from '@/lib/apiKeys';
 
 const STORAGE_KEY_PROJECTS   = 'drama-studio-projects';
@@ -36,6 +37,7 @@ function makeProject(overrides?: Partial<Project>): Project {
     id: `proj-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     title: '',
     scenes: [],
+    characters: [],
     updatedAt: Date.now(),
     ...overrides,
   };
@@ -72,8 +74,9 @@ export function StudioLayout() {
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId]
   );
-  const scenes       = currentProject?.scenes ?? [];
-  const projectTitle = currentProject?.title  ?? '';
+  const scenes       = currentProject?.scenes     ?? [];
+  const projectTitle = currentProject?.title      ?? '';
+  const characters   = currentProject?.characters ?? [];
 
   // 对当前项目的 scenes 和 title 写入
   const setScenes = useCallback(
@@ -95,6 +98,19 @@ export function StudioLayout() {
         prev.map((p) =>
           p.id === activeProjectId ? { ...p, title, updatedAt: Date.now() } : p
         )
+      );
+    },
+    [activeProjectId, setProjects]
+  );
+
+  const setCharacters = useCallback(
+    (value: CharacterProfile[] | ((prev: CharacterProfile[]) => CharacterProfile[])) => {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== activeProjectId) return p;
+          const next = value instanceof Function ? value(p.characters ?? []) : value;
+          return { ...p, characters: next, updatedAt: Date.now() };
+        })
       );
     },
     [activeProjectId, setProjects]
@@ -289,12 +305,22 @@ export function StudioLayout() {
       )
     );
 
+    // 追加已启用的角色外貌描述，提升人物一致性
+    const enabledChars = characters.filter((c) => c.enabled && c.description.trim());
+    let finalPrompt = scene.prompt.trim();
+    if (enabledChars.length > 0) {
+      const charDesc = enabledChars
+        .map((c) => (c.name ? `${c.name}: ${c.description.trim()}` : c.description.trim()))
+        .join('; ');
+      finalPrompt += `. Maintain character consistency — ${charDesc}`;
+    }
+
     const toastId = toast.loading('正在提交视频任务...');
     try {
       const genRes = await fetch('/api/video/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getApiHeaders() },
-        body: JSON.stringify({ prompt: scene.prompt }),
+        body: JSON.stringify({ prompt: finalPrompt }),
       });
       const genData = await genRes.json();
 
@@ -383,6 +409,15 @@ export function StudioLayout() {
             />
           </div>
           <Separator className="mt-2" />
+
+          {/* 角色设定 */}
+          <div className="px-3 py-2.5 shrink-0">
+            <CharacterPanel
+              characters={characters}
+              onChange={setCharacters}
+            />
+          </div>
+          <Separator className="shrink-0" />
 
           <Tabs defaultValue="novel" className="flex flex-col flex-1 min-h-0">
             <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-muted/50">

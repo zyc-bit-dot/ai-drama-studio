@@ -1,8 +1,17 @@
+// 角色设定
+export interface CharacterProfile {
+  id: string;
+  name: string;        // 角色名（显示用）
+  description: string; // 外貌描述，追加到 prompt
+  enabled: boolean;    // 是否追加到所有 prompt
+}
+
 // 项目（多剧本管理）
 export interface Project {
   id: string;
   title: string;
   scenes: Scene[];
+  characters: CharacterProfile[]; // 角色设定列表
   updatedAt: number; // Unix ms
 }
 
