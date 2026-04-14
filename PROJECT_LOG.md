@@ -12,7 +12,8 @@
 **Phase 4 完成** ✅ — 工作区持久化（localStorage Auto-Save + 清空工作台）  
 **Phase 5 完成** ✅ — 多剧本管理 + ZIP/TXT 导出中心  
 **Phase 5.5 完成** ✅ — 手动中断视频生成 + BYOK 鉴权架构重构  
-**Phase 6 完成** ✅ — 生产环境构建预检 + Vercel 部署上线
+**Phase 6 完成** ✅ — 生产环境构建预检 + Vercel 部署上线  
+**Phase 6.1 完成** ✅ — 刷新恢复轮询 Bug 修复 + Vercel 香港节点迁移
 
 ---
 
@@ -32,16 +33,25 @@
 | GitHub | `zyc-bit-dot` | zhangyuchi2309@gmail.com |
 | Vercel | `zyc-bit-dot`（同 GitHub OAuth） | zhangyuchi2309@gmail.com |
 
-### 自动部署说明
+### 部署说明
 
-Vercel 已连接 GitHub 仓库的 `main` 分支。每次执行以下操作后，Vercel 会**自动触发重新部署**（无需手动操作）：
+⚠️ **GitHub 自动部署未绑定**（首次部署时报错 `Failed to connect zyc-bit-dot/ai-drama-studio to project`）。
+
+**每次修改代码后，需执行两步：**
 
 ```bash
+# 第一步：推送代码到 GitHub
 cd /home/anbq/ai-drama-studio
 git add .
 git commit -m "描述改动"
-git push   # 推送到 main 分支即触发自动部署
+git push
+
+# 第二步：手动触发 Vercel 部署（必须做，否则线上不更新）
+export PATH="$HOME/bin:$PATH"
+npx vercel --prod
 ```
+
+如需修复自动部署，进入 Vercel 控制台 → 项目 Settings → Git → 重新连接 GitHub 仓库。
 
 ---
 
@@ -217,6 +227,15 @@ localStorage
 - [x] `.gitignore` 覆盖所有敏感文件
 - [x] git 初始化，分支 `main`，绑定远程 `origin`
 - [x] Vercel CLI 部署，生产环境上线
+
+### Phase 6.1 — Bug 修复 & 稳定性
+- [x] **刷新丢失轮询 Bug**：`taskId` 存入 `Scene`（持久化到 localStorage），页面加载后自动恢复所有 `pending`/`generating` 场景的轮询，顶部 Toast 提示恢复数量
+- [x] **Vercel 香港节点**：新增 `vercel.json`，`regions: ["hkg1"]`，API 函数 `maxDuration: 30s`，降低调用可灵北京 API 的延迟（待验证 Hobby 计划是否生效）
+- [x] **状态日志**：`/api/video/status` 服务端打印 `taskId → klingStatus → sceneStatus`，方便在 Vercel 控制台 Functions 日志排查问题
+
+### ⚠️ 已知问题 / 待验证
+- Vercel Hobby 免费计划可能不支持 `regions` 自定义，香港节点是否生效需测试确认
+- 若可灵 API 从 Vercel 美国节点调用仍超时，备选方案：迁移到香港 VPS 或 Railway（亚洲区）
 
 ---
 
