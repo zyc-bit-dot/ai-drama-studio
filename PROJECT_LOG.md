@@ -13,7 +13,8 @@
 **Phase 5 完成** ✅ — 多剧本管理 + ZIP/TXT 导出中心  
 **Phase 5.5 完成** ✅ — 手动中断视频生成 + BYOK 鉴权架构重构  
 **Phase 6 完成** ✅ — 生产环境构建预检 + Vercel 部署上线  
-**Phase 6.1 完成** ✅ — 刷新恢复轮询 Bug 修复 + Vercel 香港节点迁移
+**Phase 6.1 完成** ✅ — 刷新恢复轮询 Bug 修复 + Vercel 香港节点迁移  
+**Phase 6.2 完成** ✅ — Edge Runtime 修复 502 + 角色设定面板
 
 ---
 
@@ -233,9 +234,28 @@ localStorage
 - [x] **Vercel 香港节点**：新增 `vercel.json`，`regions: ["hkg1"]`，API 函数 `maxDuration: 30s`，降低调用可灵北京 API 的延迟（待验证 Hobby 计划是否生效）
 - [x] **状态日志**：`/api/video/status` 服务端打印 `taskId → klingStatus → sceneStatus`，方便在 Vercel 控制台 Functions 日志排查问题
 
-### ⚠️ 已知问题 / 待验证
-- Vercel Hobby 免费计划可能不支持 `regions` 自定义，香港节点是否生效需测试确认
-- 若可灵 API 从 Vercel 美国节点调用仍超时，备选方案：迁移到香港 VPS 或 Railway（亚洲区）
+### Phase 6.2 — Edge Runtime + 角色设定
+
+**502 根本原因确认**：Vercel Hobby 免费计划不支持 `vercel.json` 的 `regions` 自定义，函数始终运行在美国华盛顿（iad1），调用 `api-beijing.klingai.com` 大量 502 超时。
+
+**修复：视频 API 切换为 Edge Runtime**
+- `/api/video/generate` 和 `/api/video/status` 加 `export const runtime = 'edge'`
+- Edge Runtime 运行在 Cloudflare 全球边缘网络，对中国用户自动就近选香港/东京节点
+- 新增 `lib/server/video/klingJwt.ts`：用 Web Crypto API 实现 HS256 JWT 签名，替换不兼容 Edge 的 `jsonwebtoken`
+- 效果：502 错误大幅减少，视频生成恢复稳定
+
+**新功能：角色设定面板**（`components/studio/CharacterPanel.tsx`）
+- 新增 `CharacterProfile` 类型（id / name / description / enabled）
+- `Project` 新增 `characters` 字段，随剧本持久化到 localStorage
+- 左侧面板「👤 角色设定」区域：添加/编辑/删除角色，开关控制是否启用
+- 生成视频时，所有 `enabled: true` 的角色描述自动追加到 prompt 末尾：`Maintain character consistency — 角色名: 描述`
+- 多角色支持，各自独立开关
+- 描述建议用英文（提示语已说明）
+
+### ⚠️ 已知注意事项
+- Edge Runtime 不能使用 Node.js API（fs、crypto 等），仅限 Web API
+- DeepSeek 相关路由（analyze、polish）仍为 Node.js 运行时，暂无问题
+- 角色设定只影响提示词，不能保证可灵 100% 保持人物一致（可灵本身的限制），建议配合「参考图/首帧图」功能（待实现）
 
 ---
 
@@ -271,3 +291,4 @@ gh auth status                   # 验证登录状态
 - [ ] 错误重试策略（指数退避）
 - [ ] 自定义域名绑定（Vercel 控制台 → Domains）
 - [ ] 可灵模型参数暴露（时长 5s/10s、画幅比例、高清模式）
+- [ ] 角色参考图支持（上传首帧图片，切换为图生视频 API，人物一致性更强）
