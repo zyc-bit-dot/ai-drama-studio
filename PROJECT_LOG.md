@@ -10,43 +10,53 @@
 **Phase 2 完成** ✅ — DeepSeek LLM 接入（分镜拆解 + 提示词润色）  
 **Phase 3 完成** ✅ — 可灵 API 接入（JWT 鉴权 + 任务提交 + 5s 轮询）  
 **Phase 4 完成** ✅ — 工作区持久化（localStorage Auto-Save + 清空工作台）  
-**Phase 5 完成** ✅ — 多剧本管理 + ZIP/TXT 导出中心
+**Phase 5 完成** ✅ — 多剧本管理 + ZIP/TXT 导出中心  
+**Phase 5.5 完成** ✅ — 手动中断视频生成 + BYOK 鉴权架构重构  
+**Phase 6 完成** ✅ — 生产环境构建预检 + Vercel 部署上线
 
 ---
 
-## 已完成功能
+## 🌐 线上环境信息
 
-### Phase 0
-- [x] Next.js 16 + TypeScript + Tailwind v4 + shadcn/ui v4 初始化
-- [x] crypto-js 类型包安装
+| 项目 | 地址 |
+|------|------|
+| **生产网站（常用）** | https://ai-drama-studio-ten.vercel.app |
+| **Vercel 控制台** | https://vercel.com/zyc-bit-dots-projects/ai-drama-studio |
+| **GitHub 仓库** | https://github.com/zyc-bit-dot/ai-drama-studio |
+| **本地开发** | http://localhost:3000（`npm run dev`） |
 
-### Phase 1
-- [x] 主控台三栏布局（左：小说输入，右：分镜预览，底：进度面板）
-- [x] `SettingsDialog` — API Key 输入面板（前端遮挡显示）
-- [x] `POST /api/settings` — 后端加密保存 Key 到 `data/config.json`
-- [x] `GET /api/settings` — 返回脱敏 Key（DeepSeek: `****xxxx`；Kling Access Key: `xxxx****xxxx`；Kling Secret Key: `****xxxx`）
-- [x] 可灵双密钥拆分：`klingAccessKey` + `klingSecretKey` 独立存储，Secret Key 前端永久遮挡
-- [x] `POST /api/mock/analyze` — Mock 分镜拆解（返回 5 个场景卡片）
-- [x] `POST /api/mock/generate` — Mock 视频生成（SSE 流式进度推送）
-- [x] Mock 数据驱动完整 UI 交互闭环
+### GitHub / Vercel 账号信息
 
-### Phase 1.5
-- [x] 左侧双 Tab 模式（shadcn Tabs）
-  - Tab 1「📖 小说智能拆解」：原有批量拆解逻辑不变
-  - Tab 2「⚡ 直接写分镜」：8 种题材选择器 + 单条 Prompt 输入 → 追加到分镜板
-- [x] 分镜卡片 Prompt 区域改为可编辑 Textarea（用户随时修改后可重新生成）
-- [x] 「✨ AI 润色」按钮：Mock 1s loading → 随机从 5 种电影级提示词模板中选一个替换当前 Prompt
-- [x] 可灵双密钥（klingAccessKey + klingSecretKey）独立存储，Secret Key 永久遮挡
+| 平台 | 用户名 | 邮箱 |
+|------|--------|------|
+| GitHub | `zyc-bit-dot` | zhangyuchi2309@gmail.com |
+| Vercel | `zyc-bit-dot`（同 GitHub OAuth） | zhangyuchi2309@gmail.com |
 
-### Phase 1.8
-- [x] 卡片头部 4 个管理按钮（ArrowLeft / ArrowRight / Plus / Trash2，ghost icon）
-- [x] `handleMoveSceneUp/Down`：数组内交换位置
-- [x] `handleDeleteScene`：从数组移除
-- [x] `handleInsertSceneAfter`：就地插入，继承 genre，prompt 为空，id 唯一
-- [x] 序号 `#N` 由数组实际位置（arrayIndex）动态渲染，不依赖 scene.index 字段
-- [x] 边界禁用：第一张卡 ArrowLeft disabled，最后一张 ArrowRight disabled
-- [x] 生成中（pending/generating）4 个管理按钮全部 disabled，防止状态错乱
-- [x] hover title 提示文字（向前移 / 向后移 / 在此后插入分镜 / 删除分镜）
+### 自动部署说明
+
+Vercel 已连接 GitHub 仓库的 `main` 分支。每次执行以下操作后，Vercel 会**自动触发重新部署**（无需手动操作）：
+
+```bash
+cd /home/anbq/ai-drama-studio
+git add .
+git commit -m "描述改动"
+git push   # 推送到 main 分支即触发自动部署
+```
+
+---
+
+## 技术栈
+
+| 层次 | 技术 |
+|------|------|
+| 框架 | Next.js 16.2.3（App Router，Turbopack） |
+| 语言 | TypeScript |
+| 样式 | Tailwind CSS v4 |
+| UI 组件 | shadcn/ui v4（base-ui 底层） |
+| 状态持久化 | localStorage（自定义 `useLocalStorage` Hook） |
+| LLM | DeepSeek API（OpenAI SDK 兼容） |
+| 视频生成 | 可灵 Kling API（JWT HS256 鉴权） |
+| 部署 | Vercel Serverless |
 
 ---
 
@@ -54,31 +64,47 @@
 
 ```
 ai-drama-studio/
-├── PROJECT_LOG.md               ← 本文件
+├── PROJECT_LOG.md               ← 本文件（交接文档）
+├── .gitignore                   ← 已排除 .env*, node_modules, .next, data/config.json
 ├── data/
-│   └── config.json              ← API Key 加密存储（gitignored）
+│   └── config.json              ← 服务端加密 Key 备用存储（本地开发用，已 gitignore）
 ├── lib/
+│   ├── apiKeys.ts               ← 客户端 API Key 工具（localStorage 读写 + 生成请求 Header）
 │   ├── server/
-│   │   └── config.ts            ← 服务端 Key 读写（Node crypto AES-256）
+│   │   ├── config.ts            ← 服务端 Key 读写（Node crypto AES-256，Serverless 下为空）
+│   │   ├── llm/
+│   │   │   ├── LLMService.ts    ← LLM 服务接口定义
+│   │   │   └── DeepSeekAdapter.ts ← DeepSeek 适配器（支持 Header Key 覆盖）
+│   │   └── video/
+│   │       ├── VideoService.ts  ← 视频服务接口定义
+│   │       └── KlingAdapter.ts  ← 可灵适配器（JWT 生成 + 支持 Header Key 覆盖）
+│   ├── exportUtils.ts           ← ZIP / TXT 导出工具
 │   └── genres.ts                ← 题材选项常量（GENRE_OPTIONS）
 ├── types/
-│   └── index.ts                 ← 共享类型定义（Scene, Config 等）
+│   └── index.ts                 ← 共享类型定义（Scene, Project, ApiKeyConfig 等）
+├── hooks/
+│   └── useLocalStorage.ts       ← 类型安全 localStorage Hook（SSR/Hydration 安全）
 ├── app/
 │   ├── layout.tsx
-│   ├── page.tsx                 ← 主控台页面（客户端组件入口）
+│   ├── page.tsx                 ← 主控台页面入口（客户端组件）
 │   └── api/
-│       ├── settings/route.ts    ← GET/POST API Key
-│       └── mock/
-│           ├── analyze/route.ts ← Mock 分镜拆解
-│           └── generate/route.ts← Mock 视频生成（SSE）
+│       ├── settings/route.ts    ← GET/POST API Key（向后兼容，生产环境不再使用）
+│       ├── analyze/route.ts     ← 真实分镜拆解（DeepSeek）
+│       ├── polish/route.ts      ← 真实提示词润色（DeepSeek）
+│       ├── video/
+│       │   ├── generate/route.ts ← 提交可灵视频任务
+│       │   └── status/route.ts  ← 查询可灵任务状态
+│       ├── export/proxy/route.ts ← 视频下载代理（绕过 CORS）
+│       └── mock/                ← Mock 接口（保留备用，不再被前端调用）
 └── components/
     ├── settings/
-    │   └── SettingsDialog.tsx
+    │   └── SettingsDialog.tsx   ← API Key 设置面板（BYOK，存 localStorage）
     └── studio/
-        ├── StudioLayout.tsx       ← 整体布局 + 状态管理 + Tabs
+        ├── StudioLayout.tsx       ← 整体布局 + 全局状态管理
         ├── NovelInput.tsx         ← Tab 1：小说批量拆解
-        ├── DirectInput.tsx        ← Tab 2：直接写分镜（新增）
-        ├── StoryboardPreview.tsx  ← 右侧分镜卡片（含可编辑 Prompt + 润色）
+        ├── DirectInput.tsx        ← Tab 2：直接写分镜
+        ├── StoryboardPreview.tsx  ← 右侧分镜卡片网格（含中断按钮）
+        ├── ProjectLibrary.tsx     ← 左侧剧本库抽屉（Sheet）
         └── VideoProgress.tsx      ← 底部进度面板
 ```
 
@@ -88,81 +114,109 @@ ai-drama-studio/
 
 | 路由 | 方法 | 说明 |
 |------|------|------|
-| `/api/settings` | GET | 获取已保存 Key（脱敏显示） |
-| `/api/settings` | POST | 保存 Key（body: `{ deepseekKey, klingAccessKey, klingSecretKey }`） |
-| `/api/analyze` | POST | **真实** 分镜拆解（DeepSeek，body: `{ novelText }`） |
-| `/api/polish` | POST | **真实** 提示词润色（DeepSeek，body: `{ prompt }`） |
-| `/api/video/generate` | POST | **真实** 提交可灵任务（body: `{ prompt }`，返回 `{ taskId }`） |
-| `/api/video/status` | GET | **真实** 查询任务状态（query: `?taskId=xxx`） |
-| `/api/mock/generate` | POST | 已废弃（保留文件备用） |
-| `/api/mock/analyze` | POST | 保留备用（不再被前端调用） |
+| `/api/analyze` | POST | 分镜拆解（DeepSeek），Header: `X-Deepseek-Key` |
+| `/api/polish` | POST | 提示词润色（DeepSeek），Header: `X-Deepseek-Key` |
+| `/api/video/generate` | POST | 提交可灵任务，Header: `X-Kling-Access` + `X-Kling-Secret` |
+| `/api/video/status` | GET | 查询任务状态，Header: `X-Kling-Access` + `X-Kling-Secret` |
+| `/api/export/proxy` | GET | 视频下载代理，query: `?url=...` |
+| `/api/settings` | GET/POST | 服务端 Key 存储（向后兼容，生产环境已弃用） |
 
 ---
 
-## 安全规范
+## 鉴权架构（BYOK 模式）
 
-- API Key 用 AES-256-CBC 加密，密钥 `SERVER_ENCRYPT_SECRET`（默认写在 `lib/server/config.ts`，生产环境改为环境变量）
-- 前端**从不**存储明文 Key，只显示脱敏版本
-- 所有 API 调用在服务端读取 Key 后发起
+**生产环境（Vercel Serverless）采用 BYOK（Bring Your Own Key）模式：**
+
+1. 用户在「设置」面板输入 API Key
+2. Key 保存在**浏览器 localStorage** 中（不上传服务器）
+3. 每次调用 API 时，前端从 localStorage 读取 Key，放入自定义 HTTP Header 发送
+4. 后端从 Header 中读取 Key 并调用第三方 API
+5. 后端若 Header 中无 Key，回退读取服务端 `data/config.json`（本地开发用）
+
+```
+localStorage
+  drama-studio-deepseek-key    → Header: X-Deepseek-Key
+  drama-studio-kling-access-key → Header: X-Kling-Access
+  drama-studio-kling-secret-key → Header: X-Kling-Secret
+```
+
+**前端工具函数：** `lib/apiKeys.ts`
+- `getApiHeaders()` — 读取 localStorage，返回 Header 对象，供 fetch 使用
+- `saveApiKeys()` — 保存 Key 到 localStorage
+- `getStoredApiKeys()` — 读取 Key 原值（用于 SettingsDialog 状态徽章）
+- `maskTail() / maskMiddle()` — 客户端脱敏显示
 
 ---
 
-## 已完成 — Phase 2
-
-- [x] `lib/server/llm/LLMService.ts` — 接口定义（analyzeNovel / polishPrompt）
-- [x] `lib/server/llm/DeepSeekAdapter.ts` — OpenAI SDK 适配 DeepSeek，动态读取 Key，含结构验证
-- [x] `POST /api/analyze` — 真实小说拆解，`response_format: json_object`，返回 3-6 个 Scene
-- [x] `POST /api/polish` — 真实提示词润色，扩写为电影级英文镜头语言
-- [x] 前端 Toast 通知（sonner）：loading / success / error 三态
-- [x] `/api/mock/generate` 保留（Phase 3 替换为真实 Kling）
-
-## 已完成 — Phase 3
-
-- [x] `lib/server/video/VideoService.ts` — 接口定义（submitTask / queryTask）
-- [x] `lib/server/video/KlingAdapter.ts`
-  - JWT 生成：`{ iss: accessKey, exp: now+1800, nbf: now-5 }`，HS256
-  - `submitTask`：POST `/v1/videos/text2video`，model_name=kling-v1
-  - `queryTask`：GET `/v1/videos/text2video/{taskId}`，解析 task_status / videos[0].url
-- [x] `POST /api/video/generate` — 提交任务，返回 `{ taskId }`
-- [x] `GET /api/video/status?taskId=` — 查询状态，返回 `{ status, progress, videoUrl, coverUrl }`
-- [x] 前端轮询（StudioLayout）
-  - SSE 完全废弃，改为 `setInterval` 每 5s 轮询
-  - `pollingRefs`（useRef Map）管理所有活跃 interval，组件卸载自动清理
-  - processing 阶段每轮 progress +8%，上限 90%，succeed 跳 100%
-  - 删除卡片时自动停止对应轮询
-  - `isAnyGenerating` 由 scenes 状态派生（useMemo），无冗余 state
-
-## Kling 状态映射
+## 视频生成状态机
 
 | Kling task_status | 前端 SceneStatus | progress |
 |-------------------|-----------------|----------|
 | submitted | pending | 10% |
-| processing | generating | 每轮+8%，上限90% |
+| processing | generating | 每轮+8%，上限 90% |
 | succeed | completed | 100% |
 | failed | failed | 0% |
 
-## 已完成 — Phase 4
-
-- [x] `hooks/useLocalStorage.ts` — 类型安全通用 Hook，SSR/Hydration 安全（useEffect 挂载后读取）
-- [x] `scenes` 和 `projectTitle` 替换为 `useLocalStorage`，键名：`drama-studio-scenes` / `drama-studio-title`
-- [x] 所有增删改查、进度更新、视频 URL 均实时同步到 localStorage
-- [x] Hydration 期间显示「加载中...」占位，避免内容闪烁
-- [x] 顶部新增「🗑️ 新建项目」按钮 + AlertDialog 二次确认弹窗
-- [x] 确认后：清空 scenes、重置 title、清除 localStorage、停止所有轮询
-
-## 待办事项 (Phase 5)
-
-- [ ] 批量生成按钮（一键生成所有 idle 场景）
-- [ ] 项目导出（JSON 文件下载）
-- [ ] 错误重试策略（指数退避）
+**注意**：progress 0→90% 是前端模拟进度（每 5 秒轮询 +8%，约 56 秒到顶）。90%→100% 必须等可灵返回 `succeed`，可灵实际生成时间通常 3~10 分钟，高峰期更长，属正常现象。
 
 ---
 
-## 已知 Bug / 注意事项
+## 已完成功能
 
-- Next.js 16 + React 19 下 `use client` 组件不能使用 `async/await` 直接在渲染中 fetch，所有数据获取用 `useEffect` + `useState`
-- Tailwind v4 不再支持 `tailwind.config.js`，主题变量在 `globals.css` 中定义
-- `crypto-js` npm 包**未安装**（只有类型），服务端加密改用 Node.js 内置 `crypto` 模块
+### Phase 0
+- [x] Next.js 16 + TypeScript + Tailwind v4 + shadcn/ui v4 初始化
+
+### Phase 1
+- [x] 三栏布局（左：小说输入，右：分镜预览，底：进度面板）
+- [x] `SettingsDialog` — API Key 输入面板
+
+### Phase 1.5
+- [x] 左侧双 Tab（小说智能拆解 / 直接写分镜）
+- [x] 分镜卡片 Prompt 区域可编辑 Textarea
+- [x] 「✨ AI 润色」按钮
+
+### Phase 1.8
+- [x] 卡片头部 4 个管理按钮（前移 / 后移 / 插入 / 删除）
+- [x] 边界禁用：第一张禁前移，最后一张禁后移
+- [x] 生成中所有管理按钮 disabled
+
+### Phase 2
+- [x] `DeepSeekAdapter` — analyzeNovel / polishPrompt
+- [x] `POST /api/analyze` — 真实小说拆解
+- [x] `POST /api/polish` — 真实提示词润色
+- [x] sonner Toast 通知（loading / success / error）
+
+### Phase 3
+- [x] `KlingAdapter` — JWT 生成 + submitTask + queryTask
+- [x] `POST /api/video/generate` — 提交任务
+- [x] `GET /api/video/status` — 查询状态
+- [x] 前端 5s 轮询（pollingRefs Map 管理，组件卸载自动清理）
+- [x] 删除卡片时自动停止对应轮询
+
+### Phase 4
+- [x] `useLocalStorage` Hook（SSR/Hydration 安全）
+- [x] scenes + projectTitle 持久化到 localStorage
+- [x] 「🗑️ 清空工作台」按钮 + AlertDialog 二次确认
+
+### Phase 5
+- [x] 多剧本管理（ProjectLibrary 抽屉，左侧面板）
+- [x] 剧本新建 / 切换 / 删除
+- [x] ZIP 批量下载已完成视频（`/api/export/proxy` 绕 CORS）
+- [x] TXT 剧本文件导出
+
+### Phase 5.5 — 手动中断 + BYOK 重构
+- [x] `handleCancelGeneration` — 立即 clearInterval，状态重置为 idle，progress 归零
+- [x] SceneCard 生成中显示红色「中断」按钮（StopCircle 图标）
+- [x] SettingsDialog 改为纯 localStorage 存取（废弃 `/api/settings` 调用）
+- [x] 所有前端 fetch 加入 API Key Headers（`getApiHeaders()`）
+- [x] DeepSeekAdapter / KlingAdapter 支持 Header Key 覆盖参数
+- [x] 修复 base-ui `asChild` TypeScript 报错（改用 `render` prop）
+
+### Phase 6 — 生产部署
+- [x] `npm run build` 零报错零警告通过
+- [x] `.gitignore` 覆盖所有敏感文件
+- [x] git 初始化，分支 `main`，绑定远程 `origin`
+- [x] Vercel CLI 部署，生产环境上线
 
 ---
 
@@ -173,3 +227,28 @@ cd /home/anbq/ai-drama-studio
 npm run dev
 # 访问 http://localhost:3000
 ```
+
+**gh CLI 路径**（已安装到用户目录）：
+
+```bash
+export PATH="$HOME/bin:$PATH"   # 新终端需执行一次
+gh auth status                   # 验证登录状态
+```
+
+---
+
+## 已知注意事项
+
+- Next.js 16 + React 19：`use client` 组件不能直接 async/await 渲染，数据获取用 `useEffect` + `useState`
+- Tailwind v4：不再支持 `tailwind.config.js`，主题变量在 `globals.css` 定义
+- shadcn/ui v4（base-ui 底层）：不支持 `asChild` prop，需改用 `render` prop（见 `ProjectLibrary.tsx` 和 `StudioLayout.tsx`）
+- 可灵视频生成时长：通常 3~10 分钟，前端进度条 90% 是上限，等可灵返回 `succeed` 后跳 100%
+
+---
+
+## 待办 / 可扩展方向
+
+- [ ] 批量生成（一键生成所有 idle 场景）
+- [ ] 错误重试策略（指数退避）
+- [ ] 自定义域名绑定（Vercel 控制台 → Domains）
+- [ ] 可灵模型参数暴露（时长 5s/10s、画幅比例、高清模式）
